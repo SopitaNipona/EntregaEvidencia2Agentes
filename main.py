@@ -7,6 +7,10 @@ import OpenGL.GL as gl
 import OpenGL.GLUT as glut
 import OpenGL.GLU as glu
 
+import numpy as np
+import matplotlib.pyplot as plt
+import logging
+import sys
 # ------- Importa la clase OBJ para cargar el modelo 3D -------
 from objloader import OBJ  # Asegúrate de tener objloader.py en el mismo dir
 
@@ -25,6 +29,12 @@ logging.basicConfig(
 logging.info(
     "Iniciando simulación con dos tipos de calles (normal y luz) usando mensajes..."
 )
+
+# Variables de la cámara
+camera_angle = 0  
+camera_distance = 200  
+camera_height = 150  
+inside_plane = False  
 
 ###############################################################################
 #                          CONFIGURACIÓN DEL MODELO                           #
@@ -466,6 +476,25 @@ class TwoTypeStreetsModel(ap.Model):
 ###############################################################################
 car_model = None  # Se cargará en main()
 
+def special_keys(key, x, y):
+    global camera_angle, camera_distance, camera_height, inside_plane
+    if key == glut.GLUT_KEY_LEFT:
+        camera_angle += 5
+    elif key == glut.GLUT_KEY_RIGHT:
+        camera_angle -= 5
+    elif key == glut.GLUT_KEY_UP:
+        if not inside_plane:
+            camera_distance = 5  
+            camera_height = 5  
+            inside_plane = True
+        else:
+            camera_distance = max(1, camera_distance - 5)  
+    elif key == glut.GLUT_KEY_DOWN:
+        if inside_plane:
+            camera_distance = min(50, camera_distance + 5)  
+        else:
+            camera_distance = min(300, camera_distance + 10)
+    glut.glutPostRedisplay()
 
 def draw_axes():
     gl.glBegin(gl.GL_LINES)
@@ -561,25 +590,25 @@ def draw_roads():
 
 # Posiciones de los árboles y edificios en las áreas verdes
 tree_positions = [
-    (-32, 0, -35),# Ejemplo de posición para un árbol
+    (-32, 0, -35),
     (-32, 0, -70),
-    (-32, 0, 35),   # Otra posición para un árbol
+    (-32, 0, 35),   
     (-32, 0, 70),
-    (32, 0, -35),   # Otra posición para un árbol
+    (32, 0, -35),   
     (32, 0, -70),
-    (32, 0, 35),     # Otra posición para un árbol
+    (32, 0, 35),     
     (32, 0, 70)
 ]
 
 building_positions = [
-    ((-45, 0, -52), -90),  # Rotar 90° para alinearlo con la calle
-    ((-45, 0, 52), -90),   # No rotar
-    ((45, 0, -52), 90),  # Rotar 90° para alinearlo con la calle
-    ((45, 0, 52), 90)    # No rotar
+    ((-45, 0, -52), -90), 
+    ((-45, 0, 52), -90),  
+    ((45, 0, -52), 90),  
+    ((45, 0, 52), 90)    
 ]
 
 house_positions = [
-    ((-62, 0, -52),90),  # Ejemplo de posición para una casa
+    ((-62, 0, -52),90),  
     ((-62, 0, -30),90),
     ((-62, 0, 52), 90),
     ((-62, 0, 75), 90),
@@ -602,17 +631,17 @@ def draw_tree(position):
     gl.glPushMatrix()
     gl.glTranslatef(x, y, z)
     gl.glRotatef(-90, 1, 0, 0)
-    gl.glScalef(1, 1, 1)  # Ajusta la escala del árbol si es necesario
+    gl.glScalef(1, 1, 1)  
     tree_model.render()
     gl.glPopMatrix()
 
 def draw_building(position, rotation):
     x, y, z = position
     gl.glPushMatrix()
-    gl.glTranslatef(x, y, z)  # Mueve el edificio a su posición
-    gl.glRotatef(rotation, 0, 1, 0)  # Gira según el ángulo dado
+    gl.glTranslatef(x, y, z) 
+    gl.glRotatef(rotation, 0, 1, 0)  
     gl.glRotatef(-90, 1, 0, 0)
-    gl.glScalef(1.1, 1.1, 1.1)  # Ajusta la escala del edificio
+    gl.glScalef(1.1, 1.1, 1.1)  
     
     # Activar textura
     gl.glEnable(gl.GL_TEXTURE_2D)
@@ -649,9 +678,9 @@ def draw_house(position, rotation):
     x, y, z = position
     gl.glPushMatrix()
     gl.glTranslatef(x, y, z)
-    gl.glRotatef(rotation, 0, 1, 0)  # Ajusta la rotación si es necesario
+    gl.glRotatef(rotation, 0, 1, 0)  
     gl.glRotatef(-90, 1, 0, 0)
-    gl.glScalef(12, 12, 12)  # Ajusta la escala de la casa si es necesario
+    gl.glScalef(12, 12, 12)  
     house_model.render()
     gl.glPopMatrix()
 
@@ -781,7 +810,7 @@ def draw_vehicle(vehicle):
     px, py, pz = vehicle.position
 
     gl.glPushMatrix()
-    gl.glTranslatef(px, py, pz)
+    gl.glTranslatef(px, py + 2.0, pz)
 
     # Si tu modelo OBJ está 'acostado', ajusta la rotación base
     gl.glRotatef(-90, 1, 0, 0)  # Ejemplo, si tu .obj apunta en eje +Z...
@@ -802,7 +831,16 @@ def display():
     gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
     gl.glMatrixMode(gl.GL_MODELVIEW)
     gl.glLoadIdentity()
-    glu.gluLookAt(0, 150, 150, 0, 0, 0, 0, 1, 0)
+    
+    # Configuración de la cámara
+    if inside_plane:
+        eye_x = camera_distance * math.sin(math.radians(camera_angle))
+        eye_z = camera_distance * math.cos(math.radians(camera_angle))
+        glu.gluLookAt(eye_x, camera_height, eye_z, 0, camera_height, 0, 0, 1, 0)
+    else:
+        eye_x = camera_distance * math.sin(math.radians(camera_angle))
+        eye_z = camera_distance * math.cos(math.radians(camera_angle))
+        glu.gluLookAt(eye_x, camera_height, eye_z, 0, 0, 0, 0, 1, 0)
 
     draw_areas()
     draw_axes()
@@ -849,6 +887,83 @@ def update(_):
     glut.glutTimerFunc(100, update, 0)
 
 
+def collect_simulation_stats():
+    """Recolecta y muestra estadísticas de la simulación con gráficos guardados en archivos."""
+    try:
+        # Extraer velocidades registradas en el log
+        speeds = []
+        brakes = 0
+        accelerations = 0
+        traffic_light_changes = 0
+
+        with open("debug.log", "r") as log_file:
+            for line in log_file:
+                if "speed=" in line:
+                    try:
+                        speed = float(line.split("speed=")[1].split()[0])
+                        speeds.append(speed)
+                    except ValueError:
+                        continue
+                elif "BRAKE" in line:
+                    brakes += 1
+                elif "ACCEL" in line:
+                    accelerations += 1
+                elif "-> GREEN" in line or "-> RED" in line or "-> YELLOW" in line:
+                    traffic_light_changes += 1
+
+        if speeds:
+            speed_array = np.array(speeds)
+            speed_mean = np.mean(speed_array)
+            speed_std = np.std(speed_array)
+            speed_min = np.min(speed_array)
+            speed_max = np.max(speed_array)
+        else:
+            speed_mean = speed_std = speed_min = speed_max = 0.0
+
+        # Mostrar estadísticas
+        print("\n=== Estadísticas de la Simulación ===")
+        print(f"Velocidad Promedio: {speed_mean:.2f} m/s")
+        print(f"Desviación Estándar de Velocidad: {speed_std:.2f} m/s")
+        print(f"Velocidad Mínima: {speed_min:.2f} m/s")
+        print(f"Velocidad Máxima: {speed_max:.2f} m/s")
+        print(f"Eventos de Frenado: {brakes}")
+        print(f"Eventos de Aceleración: {accelerations}")
+        print(f"Cambios de Semáforo: {traffic_light_changes}")
+
+        # Generar gráficos y guardarlos
+        plt.figure(figsize=(10, 5))
+        plt.hist(speeds, bins=20, color='blue', alpha=0.7)
+        plt.xlabel("Velocidad (m/s)")
+        plt.ylabel("Frecuencia")
+        plt.title("Distribución de Velocidades de los Vehículos")
+        plt.grid()
+        plt.savefig("velocidades.png")  # Guardar en archivo
+        plt.close()
+
+        # Gráfico de eventos
+        labels = ['Frenadas', 'Aceleraciones', 'Cambios de Semáforo']
+        values = [brakes, accelerations, traffic_light_changes]
+        plt.figure(figsize=(8, 5))
+        plt.bar(labels, values, color=['red', 'green', 'yellow'])
+        plt.xlabel("Eventos")
+        plt.ylabel("Cantidad")
+        plt.title("Frecuencia de Eventos en la Simulación")
+        plt.grid(axis='y')
+        plt.savefig("eventos.png")  # Guardar en archivo
+        plt.close()
+
+        print("Gráficos guardados como 'velocidades.png' y 'eventos.png'")
+
+    except Exception as e:
+        logging.error(f"Error al recolectar estadísticas: {e}")
+
+
+def on_exit():
+    """Función que se ejecuta al cerrar la ventana de simulación."""
+    collect_simulation_stats()
+    sys.exit(0)
+
+
 def main():
     logging.info(
         "main() -> Iniciando simulación con mensajes y orientaciones de vehículo."
@@ -865,33 +980,36 @@ def main():
     glu.gluPerspective(60, 800 / 600, 1, 1000)
 
     glut.glutDisplayFunc(display)
+    glut.glutSpecialFunc(special_keys)
     glut.glutTimerFunc(100, update, 0)
+
+    glut.glutCloseFunc(on_exit)
 
     # Cargar modelo .obj (carro)
     global car_model
-    car_model = OBJ("Assets/Chevrolet_Camaro_SS_Low.obj", swapyz=True)  # Ajusta el nombre/ruta
+    car_model = OBJ("Assets/Chevrolet_Camaro_SS_Low.obj", swapyz=True) 
     car_model.generate()
     
     # Cargar modelo .obj (árbol)
     global tree_model
-    tree_model = OBJ("Assets/CartoonTree.obj", swapyz=True)  # Ajusta el nombre/ruta
+    tree_model = OBJ("Assets/CartoonTree.obj", swapyz=True)  
     tree_model.generate()
 
     # Cargar modelo .obj (edificio)
     global building_model
-    building_model = OBJ("Assets/Rv_Building_3.obj", swapyz=True)  # Ajusta el nombre/ruta
+    building_model = OBJ("Assets/Rv_Building_3.obj", swapyz=True)  
     building_model.generate()
     
     global building_texture
-    building_texture = OBJ.loadTexture("Assets/texture_build.jpg")  # Carga la textura de ladrillos
+    building_texture = OBJ.loadTexture("Assets/texture_build.jpg")  
 
     # Cargar modelo .obj (casa)
     global house_model
-    house_model = OBJ("Assets/House/House.obj", swapyz=True)  # Ajusta el nombre/ruta
+    house_model = OBJ("Assets/House/House.obj", swapyz=True)  
     house_model.generate()
     
     global wall_texture
-    wall_texture = OBJ.loadTexture("Assets/background.jpg")  # Cargar la textura de la imagen
+    wall_texture = OBJ.loadTexture("Assets/background.jpg")  
 
 
     global model
